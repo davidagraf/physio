@@ -1,0 +1,13 @@
+<div id="div-main" class="container calmgr-view"><div class="no-print row"><div class="col-md-3 col-sm-4 col-xs-6 form-group"><selectize data-preferences="patientPickerOpts" ng-model="printContact"></selectize></div><div class="col-md-3 col-sm-4 col-xs-6 form-group"><input type="text" ng-model="printQuery" placeholder="Enter Query ..." class="form-control"/></div></div><div class="no-print row"><div class="col-md-3 col-sm-4 col-xs-6 form-group"><datepicker ng-model="printStart"></datepicker></div><div class="col-md-3 col-sm-4 col-xs-6 form-group"><timepicker ng-model="printStart"></timepicker></div></div><div class="no-print row control-group {{printErrorClass()}}"><div class="col-md-3 col-sm-4 col-xs-6 form-group"><datepicker ng-model="printEnd"></datepicker></div><div class="col-md-3 col-sm-4 col-xs-6 form-group"><timepicker ng-model="printEnd"></timepicker></div></div><div class="row no-screen"><div class="col-md-12"><div id="logo"><img src="./images/physioteam_logo.png"/></div></div></div><div class="row"><div class="col-md-12"><h3 ng-show="printContact">Patient: {{printContact.title}}</h3></div></div><div class="row"><div class="col-md-12"><table class="table"><thead><tr><th ng-show="printContact == undefined">Name</th><th>Datum</th><th>Zeit</th><th>Praxis</th><th>Therapeut</th><th class="no-print small-hide">abwesend</th></tr></thead><tbody><tr ng-repeat="(key, value) in events | orderBy: 'key'"><th ng-show="printContact == undefined">{{value.title}}</th><th>{{value.momentStart.format("ddd DD.MM.YYYY")}}</th><th>{{value.momentStart.format("hh:mm")}} - {{value.momentEnd.format("hh:mm")}} </th><th>Bahnhof</th><th>Böni Mirjam</th><th class="no-print small-hide"><span ng-show="value.absent">ja</span><span ng-hide="value.absent">nein</span></th></tr></tbody></table></div></div><div class="row no-screen"><div class="col-md-12"><p>Im Verhinderungsfall bitte 24 Stunden vorher Bescheid geben.</p></div></div><div class="row no-screen"><div class="col-md-6 col-sm-6 col-xs-6">Praxis Bahnhof<br/>
+Bahnhofplatz 11<br/>
+4410 Liestal<br/>
+061 923 38 88<br/>
+<br/>
+physio.uno@gmail.com<br/>
+www.pttm.ch</div><div class="col-md-6 col-sm-6 col-xs-6">Praxis Stedli<br/>
+Rathausstrasse 33<br/>
+4410 Liestal<br/>
+061 923 37 77<br/>
+<br/>
+mail@ptmm.ch<br/>
+www.ptmm.ch</div></div></div>
