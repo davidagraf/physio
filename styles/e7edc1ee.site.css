@@ -1,3 +1,12 @@
+/* overwrite stupid modal properties */
+
+/* line 4, ../../app/styles/main.scss */
+
+#body,
+#header {
+  margin-right: 0px;
+}
+
 /*!
  * Bootstrap v3.0.0
  *
@@ -9368,97 +9377,97 @@ td.visible-print {
   }
 }
 
-/* line 10, ../../app/styles/main.scss */
+/* line 15, ../../app/styles/main.scss */
 
 body {
   background: #eeeeee;
 }
 
-/* line 14, ../../app/styles/main.scss */
+/* line 19, ../../app/styles/main.scss */
 
 .small {
   font-size: small;
 }
 
-/* line 18, ../../app/styles/main.scss */
+/* line 23, ../../app/styles/main.scss */
 
 hr {
   border-color: #aaaaaa;
   border-width: 1px;
 }
 
-/* line 23, ../../app/styles/main.scss */
+/* line 28, ../../app/styles/main.scss */
 
 textarea {
   width: 100%;
 }
 
-/* line 27, ../../app/styles/main.scss */
+/* line 32, ../../app/styles/main.scss */
 
 input[type=checkbox] {
   margin-right: 5px;
 }
 
-/* line 31, ../../app/styles/main.scss */
+/* line 36, ../../app/styles/main.scss */
 
 datepicker > input,
 timepicker > input {
   width: 100px;
 }
 
-/* line 35, ../../app/styles/main.scss */
+/* line 40, ../../app/styles/main.scss */
 
 #calendar-datepicker {
   font-size: 10px;
 }
 
-/* line 39, ../../app/styles/main.scss */
+/* line 44, ../../app/styles/main.scss */
 
 .calmgr-view {
   padding-top: 80px;
 }
 
 @media (max-width: 767px) {
-  /* line 43, ../../app/styles/main.scss */
+  /* line 48, ../../app/styles/main.scss */
 
   .calmgr-view {
     padding-top: 120px;
   }
 
-  /* line 46, ../../app/styles/main.scss */
+  /* line 51, ../../app/styles/main.scss */
 
   .small-hide {
     display: none;
   }
 }
 
-/* line 51, ../../app/styles/main.scss */
+/* line 56, ../../app/styles/main.scss */
 
 .navbar-fixed-top .brand {
   margin-left: 0px;
 }
 
 @media print {
-  /* line 56, ../../app/styles/main.scss */
+  /* line 61, ../../app/styles/main.scss */
 
   body {
     margin-left: 40px;
     margin-right: 40px;
   }
 
-  /* line 60, ../../app/styles/main.scss */
+  /* line 65, ../../app/styles/main.scss */
 
   .no-print {
     display: none;
   }
 
-  /* line 63, ../../app/styles/main.scss */
+  /* line 68, ../../app/styles/main.scss */
 
   #logo {
     width: 100%;
   }
 
-  /* line 66, ../../app/styles/main.scss */
+  /* line 71, ../../app/styles/main.scss */
 
   .row {
     margin-bottom: 40px;
@@ -9466,20 +9475,20 @@ timepicker > input {
 }
 
 @media screen {
-  /* line 72, ../../app/styles/main.scss */
+  /* line 77, ../../app/styles/main.scss */
 
   .no-screen {
     display: none;
   }
 }
 
-/* line 77, ../../app/styles/main.scss */
+/* line 82, ../../app/styles/main.scss */
 
 .cursor-pointer {
   cursor: pointer;
 }
 
-/* line 81, ../../app/styles/main.scss */
+/* line 86, ../../app/styles/main.scss */
 
 tbody th {
   font-weight: normal;
