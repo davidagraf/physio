@@ -9474,23 +9474,32 @@ timepicker > input {
   .row {
     margin-bottom: 40px;
   }
+
+  /* trick to remove print header and footer */
+
+@page {
+    size: auto;
+    /* auto is the initial value */
+    margin: 0mm;
+    /* this affects the margin in the printer settings */
+}
 }
 
 @media screen {
-  /* line 79, ../../app/styles/main.scss */
+  /* line 85, ../../app/styles/main.scss */
 
   .no-screen {
     display: none;
   }
 }
 
-/* line 84, ../../app/styles/main.scss */
+/* line 90, ../../app/styles/main.scss */
 
 .cursor-pointer {
   cursor: pointer;
 }
 
-/* line 88, ../../app/styles/main.scss */
+/* line 94, ../../app/styles/main.scss */
 
 tbody th {
   font-weight: normal;
