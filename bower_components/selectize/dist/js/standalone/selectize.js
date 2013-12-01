@@ -16,7 +16,7 @@
 
 (function(root, factory) {
 	if (typeof define === 'function' && define.amd) {
-		define(factory);
+		define('sifter', factory);
 	} else if (typeof exports === 'object') {
 		module.exports = factory();
 	} else {
@@ -464,7 +464,7 @@
 
 (function(root, factory) {
 	if (typeof define === 'function' && define.amd) {
-		define(factory);
+		define('microplugin', factory);
 	} else if (typeof exports === 'object') {
 		module.exports = factory();
 	} else {
@@ -583,7 +583,7 @@
 }));
 
 /**
- * selectize.js (v0.8.1)
+ * selectize.js (v0.8.4)
  * Copyright (c) 2013 Brian Reavis & contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
@@ -603,7 +603,7 @@
 
 (function(root, factory) {
 	if (typeof define === 'function' && define.amd) {
-		define(['jquery','sifter','microplugin'], factory);
+		define('selectize', ['jquery','sifter','microplugin'], factory);
 	} else {
 		root.Selectize = factory(root.jQuery, root.Sifter, root.MicroPlugin);
 	}
@@ -739,6 +739,16 @@
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;');
+	};
+	
+	/**
+	 * Escapes "$" characters in replacement strings.
+	 *
+	 * @param {string} str
+	 * @returns {string}
+	 */
+	var escape_replace = function(str) {
+		return (str + '').replace(/\$/g, '$$$$');
 	};
 	
 	var hook = {};
@@ -1042,7 +1052,7 @@
 			highlightedValue : null,
 			isOpen           : false,
 			isDisabled       : false,
-			isRequired       : $input.is(':required'),
+			isRequired       : $input.is('[required]'),
 			isInvalid        : false,
 			isLocked         : false,
 			isFocused        : false,
@@ -1418,7 +1428,7 @@
 					}
 					break;
 				case KEY_ESC:
-					self.blur();
+					self.close();
 					return;
 				case KEY_DOWN:
 					if (!self.isOpen && self.hasOptions) {
@@ -1451,8 +1461,7 @@
 					self.advanceSelection(1, e);
 					return;
 				case KEY_TAB:
-					if (self.settings.create && $.trim(self.$control_input.val()).length) {
-						self.createItem();
+					if (self.settings.create && self.createItem()) {
 						e.preventDefault();
 					}
 					return;
@@ -1517,7 +1526,7 @@
 			self.isFocused = true;
 			if (self.isDisabled) {
 				self.blur();
-				e.preventDefault();
+				e && e.preventDefault();
 				return false;
 			}
 	
@@ -1543,6 +1552,10 @@
 			var self = this;
 			self.isFocused = false;
 			if (self.ignoreFocus) return;
+	
+			if (self.settings.create && self.settings.createOnBlur) {
+				self.createItem();
+			}
 	
 			self.close();
 			self.setTextboxValue('');
@@ -1585,6 +1598,7 @@
 			} else {
 				value = $target.attr('data-value');
 				if (value) {
+					self.lastQuery = null;
 					self.setTextboxValue('');
 					self.addItem(value);
 					if (!self.settings.hideSelected && e.type && /mouse/.test(e.type)) {
@@ -1772,7 +1786,7 @@
 				scroll_top    = y;
 				scroll_bottom = y - height_menu + height_item;
 	
-				if (y + height_item > height_menu - scroll) {
+				if (y + height_item > height_menu + scroll) {
 					self.$dropdown_content.stop().animate({scrollTop: scroll_bottom}, animate ? self.settings.scrollDuration : 0);
 				} else if (y < scroll) {
 					self.$dropdown_content.stop().animate({scrollTop: scroll_top}, animate ? self.settings.scrollDuration : 0);
@@ -1785,12 +1799,15 @@
 		 * Selects all items (CTRL + A).
 		 */
 		selectAll: function() {
-			this.$activeItems = Array.prototype.slice.apply(this.$control.children(':not(input)').addClass('active'));
-			if (this.$activeItems.length) {
-				this.hideInput();
-				this.close();
+			var self = this;
+			if (self.settings.mode === 'single') return;
+	
+			self.$activeItems = Array.prototype.slice.apply(self.$control.children(':not(input)').addClass('active'));
+			if (self.$activeItems.length) {
+				self.hideInput();
+				self.close();
 			}
-			this.focus();
+			self.focus();
 		},
 	
 		/**
@@ -2250,10 +2267,14 @@
 				var i, active, options, value_next;
 				value = hash_key(value);
 	
+				if (self.items.indexOf(value) !== -1) {
+					if (inputMode === 'single') self.close();
+					return;
+				}
+	
+				if (!self.options.hasOwnProperty(value)) return;
 				if (inputMode === 'single') self.clear();
 				if (inputMode === 'multi' && self.isFull()) return;
-				if (self.items.indexOf(value) !== -1) return;
-				if (!self.options.hasOwnProperty(value)) return;
 	
 				$item = $(self.render('item', self.options[value]));
 				self.items.splice(self.caretPos, 0, value);
@@ -2331,12 +2352,14 @@
 		 *
 		 * Once this completes, it will be added
 		 * to the item list.
+		 *
+		 * @return {boolean}
 		 */
 		createItem: function() {
 			var self  = this;
 			var input = $.trim(self.$control_input.val() || '');
 			var caret = self.caretPos;
-			if (!input.length) return;
+			if (!input.length) return false;
 			self.lock();
 	
 			var setup = (typeof self.settings.create === 'function') ? this.settings.create : function(input) {
@@ -2364,6 +2387,8 @@
 			if (typeof output !== 'undefined') {
 				create(output);
 			}
+	
+			return true;
 		},
 	
 		/**
@@ -2402,10 +2427,10 @@
 			var isFull   = self.isFull();
 			var isLocked = self.isLocked;
 	
-			this.$wrapper
+			self.$wrapper
 				.toggleClass('rtl', self.rtl);
 	
-			this.$control
+			self.$control
 				.toggleClass('focus', self.isFocused)
 				.toggleClass('disabled', self.isDisabled)
 				.toggleClass('required', self.isRequired)
@@ -2417,7 +2442,7 @@
 				.toggleClass('has-options', !$.isEmptyObject(self.options))
 				.toggleClass('has-items', self.items.length > 0);
 	
-			this.$control_input.data('grow', !isFull && !isLocked);
+			self.$control_input.data('grow', !isFull && !isLocked);
 		},
 	
 		/**
@@ -2485,7 +2510,7 @@
 			self.$dropdown.css({visibility: 'hidden', display: 'block'});
 			self.positionDropdown();
 			self.$dropdown.css({visibility: 'visible'});
-			self.trigger('dropdown_open', this.$dropdown);
+			self.trigger('dropdown_open', self.$dropdown);
 		},
 	
 		/**
@@ -2495,7 +2520,7 @@
 			var self = this;
 			var trigger = self.isOpen;
 	
-			if (self.settings.mode === 'single' && this.items.length) {
+			if (self.settings.mode === 'single' && self.items.length) {
 				self.hideInput();
 			}
 	
@@ -2611,6 +2636,7 @@
 			}
 	
 			self.showInput();
+			self.positionDropdown();
 			self.refreshOptions(true);
 	
 			// select previous option
@@ -2776,6 +2802,7 @@
 			self.$input
 				.html('')
 				.append(revertSettings.$children)
+				.removeAttr('tabindex')
 				.attr({tabindex: revertSettings.tabindex})
 				.show();
 	
@@ -2825,10 +2852,10 @@
 			}
 			if (templateName === 'optgroup') {
 				id = data[self.settings.optgroupValueField] || '';
-				html = html.replace(regex_tag, '<$1 data-group="' + escape_html(id) + '"');
+				html = html.replace(regex_tag, '<$1 data-group="' + escape_replace(escape_html(id)) + '"');
 			}
 			if (templateName === 'option' || templateName === 'item') {
-				html = html.replace(regex_tag, '<$1 data-value="' + escape_html(value || '') + '"');
+				html = html.replace(regex_tag, '<$1 data-value="' + escape_replace(escape_html(value || '')) + '"');
 			}
 	
 			// update cache
@@ -2841,6 +2868,7 @@
 	
 	});
 	
+	
 	Selectize.count = 0;
 	Selectize.defaults = {
 		plugins: [],
@@ -2848,6 +2876,7 @@
 		persist: true,
 		diacritics: true,
 		create: false,
+		createOnBlur: false,
 		highlight: true,
 		openOnFocus: true,
 		maxOptions: 1000,

@@ -1,5 +1,5 @@
 /************************
-jquery-timepicker v1.2.9
+jquery-timepicker v1.2.12
 http://jonthornton.github.com/jquery-timepicker/
 
 requires jQuery 1.7+
@@ -28,12 +28,13 @@ requires jQuery 1.7+
 		scrollDefaultNow: false,
 		scrollDefaultTime: false,
 		selectOnBlur: false,
-		disableTouchKeyboard: true,
+		disableTouchKeyboard: false,
 		forceRoundTime: false,
 		appendTo: 'body',
 		disableTimeRanges: [],
 		closeOnWindowScroll: false,
-		disableTextInput: false
+		disableTextInput: false,
+		typeaheadHighlight: true
 	};
 	var _lang = {
 		decimal: '.',
@@ -286,6 +287,17 @@ requires jQuery 1.7+
 			settings.disableTimeRanges = settings.disableTimeRanges.sort(function(a, b){
 				return a[0] - b[0];
 			});
+
+			// merge any overlapping ranges
+			for (var i = settings.disableTimeRanges.length-1; i > 0; i--) {
+				if (settings.disableTimeRanges[i][0] <= settings.disableTimeRanges[i-1][1]) {
+					settings.disableTimeRanges[i-1] = [
+						Math.min(settings.disableTimeRanges[i][0], settings.disableTimeRanges[i-1][0]),
+						Math.max(settings.disableTimeRanges[i][1], settings.disableTimeRanges[i-1][1])
+					];
+					settings.disableTimeRanges.splice(i, 1);
+				}
+			}
 		}
 
 		return settings;
@@ -342,7 +354,7 @@ requires jQuery 1.7+
 			var timeInt = i;
 
 			var row = $('<li />');
-			row.data('time', timeInt);
+			row.data('time', timeInt % 86400);
 			row.text(_int2time(timeInt, settings.timeFormat));
 
 			if ((settings.minTime !== null || settings.durationTime !== null) && settings.showDuration) {
@@ -668,6 +680,11 @@ requires jQuery 1.7+
 		var list = self.data('timepicker-list');
 
 		if (!list || !list.is(':visible')) {
+			return true;
+		}
+
+		if (!self.data('timepicker-settings').typeaheadHighlight) {
+			list.find('li').removeClass('ui-timepicker-selected');
 			return true;
 		}
 

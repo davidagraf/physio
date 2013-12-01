@@ -12,14 +12,14 @@ $(function() {
 		});
 
 		if ($this.hasClass('start') || $this.hasClass('end')) {
-			$this.on('changeDate change', doDatepair);
+			$this.on('change', doDatepair);
 		}
 
 	});
 
 	$('.datepair input.time').each(function() {
 		var $this = $(this);
-		
+
 		$this.timepicker({
 			'showDuration': true,
 			'timeFormat': TIMEPICKER_FORMAT,
@@ -27,12 +27,12 @@ $(function() {
 		});
 
 		if ($this.hasClass('start') || $this.hasClass('end')) {
-			$this.on('changeTime change', doDatepair);
+			$this.on('change', doDatepair);
 		}
-		
+
 		if ($this.hasClass('end')) {
 			$this.on('focus', function(){$('.ui-timepicker-with-duration').scrollTop(0);});
-		}		
+		}
 
 	});
 
@@ -139,23 +139,21 @@ $(function() {
 		var start = container.find('input.start.time');
 		var end = container.find('input.end.time');
 
-		if (!start.length) {
+		if (!start.length || !end.length) {
 			return;
 		}
 
 		var startInt = start.timepicker('getSecondsFromMidnight');
 		var dateDelta = container.data('dateDelta');
+		var oldDelta = container.data('timeDelta');
 
-		if (target.hasClass('start') && (!dateDelta || dateDelta < 86400000)) {
+		if (target.hasClass('start') && (!dateDelta || dateDelta + oldDelta < 86400000)) {
 			end.timepicker('option', 'minTime', startInt);
-		}
-
-		if (!end.length) {
-			return;
+		} else {
+			end.timepicker('option', 'minTime', null);
 		}
 
 		var endInt = end.timepicker('getSecondsFromMidnight');
-		var oldDelta = container.data('timeDelta');
 
 		var endDateAdvance = 0;
 		var newDelta;
