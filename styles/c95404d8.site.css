@@ -9858,3 +9858,9 @@ timepicker > input {
 tbody th {
   font-weight: normal;
 }
+
+/* line 98, ../../app/styles/main.scss */
+
+.contactsList:nth-child(odd) {
+  background-color: #f9f9f9;
+}
