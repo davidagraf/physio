@@ -9864,3 +9864,9 @@ tbody th {
 .contactsList:nth-child(odd) {
   background-color: #f9f9f9;
 }
+
+/* line 101, ../../app/styles/main.scss */
+
+.contactsTable {
+  padding-top: 20px;
+}
