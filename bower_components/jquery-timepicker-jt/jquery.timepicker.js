@@ -1,5 +1,5 @@
 /************************
-jquery-timepicker v1.2.12
+jquery-timepicker v1.2.17
 http://jonthornton.github.com/jquery-timepicker/
 
 requires jQuery 1.7+
@@ -47,6 +47,7 @@ requires jQuery 1.7+
 	{
 		init: function(options)
 		{
+
 			return this.each(function()
 			{
 				var self = $(this);
@@ -65,11 +66,15 @@ requires jQuery 1.7+
 					self = input;
 				}
 
-				var settings = $.extend({}, _defaults);
-
-				if (options) {
-					settings = $.extend(settings, options);
+				// pick up settings from data attributes
+				var attributeOptions = [];
+				for (key in _defaults) {
+					if (self.data(key))  {
+						attributeOptions[key] = self.data(key);
+					}
 				}
+
+				var settings = $.extend({}, _defaults, attributeOptions, options);
 
 				if (settings.lang) {
 					_lang = $.extend(_lang, settings.lang);
@@ -91,6 +96,10 @@ requires jQuery 1.7+
 
 		show: function(e)
 		{
+			if (e) {
+				e.preventDefault();
+			}
+
 			var self = $(this);
 			var settings = self.data('timepicker-settings');
 
@@ -156,9 +165,9 @@ requires jQuery 1.7+
 			}
 
 			// attach close handlers
-			$('body').on('touchstart.ui-timepicker mousedown.ui-timepicker', _closeHandler);
+			$(document).on('touchstart.ui-timepicker mousedown.ui-timepicker', _closeHandler);
 			if (settings.closeOnWindowScroll) {
-				$(window).on('scroll.ui-timepicker', _closeHandler);
+				$(document).on('scroll.ui-timepicker', _closeHandler);
 			}
 
 			self.trigger('showTimepicker');
@@ -216,12 +225,18 @@ requires jQuery 1.7+
 		getTime: function(relative_date)
 		{
 			var self = this;
+
+			var time_string = _getTimeValue(self);
+			if (!time_string) {
+				return null;
+			}
+
 			if (!relative_date) {
 				relative_date = new Date();
 			}
 
 			relative_date.setHours(0, 0, 0, 0);
-			return new Date(relative_date.valueOf() + (_time2int(_getTimeValue(self))*1000));
+			return new Date(relative_date.valueOf() + (_time2int(time_string)*1000));
 		},
 
 		setTime: function(value)
@@ -354,7 +369,7 @@ requires jQuery 1.7+
 			var timeInt = i;
 
 			var row = $('<li />');
-			row.data('time', timeInt % 86400);
+			row.data('time', (timeInt <= 86400 ? timeInt : timeInt % 86400));
 			row.text(_int2time(timeInt, settings.timeFormat));
 
 			if ((settings.minTime !== null || settings.durationTime !== null) && settings.showDuration) {
@@ -427,8 +442,7 @@ requires jQuery 1.7+
 		var input = target.closest('.ui-timepicker-input');
 		if (input.length === 0 && target.closest('.ui-timepicker-wrapper').length === 0) {
 			methods.hide();
-			$('body').unbind('.ui-timepicker');
-			$(window).unbind('.ui-timepicker');
+			$(document).unbind('.ui-timepicker');
 		}
 	}
 

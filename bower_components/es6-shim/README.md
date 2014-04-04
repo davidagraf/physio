@@ -22,20 +22,20 @@ For node.js:
 
 * `Map`, `Set` (requires ES5)
 * `String`:
-    * `fromCodePoint()`
+    * `fromCodePoint()` ([a standalone shim is also available](http://mths.be/fromcodepoint))
     * `raw()`
 * `String.prototype`:
-    * `codePointAt()`
-    * `repeat()`
-    * `startsWith()`
-    * `endsWith()`
-    * `contains()`
+    * `codePointAt()` ([a standalone shim is also available](http://mths.be/codepointat))
+    * `repeat()` ([a standalone shim is also available](http://mths.be/repeat))
+    * `startsWith()` ([a standalone shim is also available](http://mths.be/startswith))
+    * `endsWith()` ([a standalone shim is also available](http://mths.be/endswith))
+    * `contains()` ([a standalone shim is also available](http://mths.be/contains))
 * `Number`:
     * `MAX_SAFE_INTEGER`
     * `EPSILON`
     * `parseInt()`
     * `parseFloat()`
-    * `isNaN()`
+    * `isNaN()`([a standalone shim is also available](https://npmjs.org/package/is-nan))
     * `isSafeInteger()`
     * `isFinite()`
 * `Number.prototype`:
@@ -44,8 +44,8 @@ For node.js:
     * `from()`
     * `of()`
 * `Array.prototype`:
-    * `find()`
-    * `findIndex()`
+    * `find()` ([a standalone shim is also available](https://github.com/paulmillr/Array.prototype.find))
+    * `findIndex()` ([a standalone shim is also available](https://github.com/paulmillr/Array.prototype.findIndex))
     * `keys()` (note: keys/values/entries return an `ArrayIterator` object)
     * `entries()`
     * `values()`
@@ -55,7 +55,6 @@ For node.js:
     * `getPropertyNames()` (ES5)
     * `is()`
     * `assign()`
-    * `mixin()` (ES5)
 * `Math`:
     * `sign()`
     * `log10()`
@@ -93,7 +92,6 @@ WeakMap has a very unusual use-case so you probably won't need it at all
 
 Object.is(NaN, NaN) // Fixes ===. 0 isnt -0, NaN is NaN
 Object.assign({a: 1}, {b: 2}) // {a: 1, b: 2}
-Object.mixin({a: 1}, {get b: function() {return 2}}) // {a: 1, b: getter}
 
 Number.isNaN('123') // false. isNaN('123') will give true.
 Number.isFinite('asd') // false. Global isFinite() will give true.

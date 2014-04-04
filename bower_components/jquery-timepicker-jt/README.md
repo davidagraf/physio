@@ -20,6 +20,8 @@ $('.some-time-inputs').timepicker(options);
 
 ```options``` is an optional javascript object with parameters explained below.
 
+You can also set options as [data attributes](https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Using_data_attributes) on the intput elements, like ```<input type="text" data-time-format="H:i:s" />```. Timepicker still needs to be initialized by calling ```$('#someElement').timepicker();```.
+
 Options
 -------
 
@@ -132,7 +134,7 @@ Close the timepicker dropdown.
 	```
 
 - **option**
-Change the settings of an existing timepicker.
+Change the settings of an existing timepicker. Calling ```option``` on a visible timepicker will cause the picker to be hidden.
 
 	```javascript
 	$('#optionExample').timepicker({ 'timeFormat': 'g:ia' });
@@ -168,16 +170,16 @@ Events
 The native ```onChange``` event will fire any time the input value is updated, whether by selection from the timepicker list or manual entry into the text input. Your code should bind to ```change``` after initializing timepicker, or use [event delegation](http://api.jquery.com/on/).
 
 - **changeTime**
-Called when a valid time value is entered or selected. See ```timeFormatError``` and ```timeRangeError``` for error events. Fires before ```change``` event.
+Called after a valid time value is entered or selected. See ```timeFormatError``` and ```timeRangeError``` for error events. Fires before ```change``` event.
 
 - **hideTimepicker**
-Called when the timepicker is closed.
+Called after the timepicker is closed.
 
 - **selectTime**
-Called when a time value is selected from the timepicker list. Fires before ```change``` event.
+Called after a time value is selected from the timepicker list. Fires before ```change``` event.
 
 - **showTimepicker**
-Called when the timepicker is shown.
+Called after the timepicker is shown.
 
 - **timeFormatError**
 Called if an unparseable time string is manually entered into the timepicker input. Fires before ```change``` event.

@@ -1,10 +1,16 @@
-// ES6-shim 0.9.1 (c) 2013 Paul Miller (http://paulmillr.com)
+// ES6-shim 0.9.3 (c) 2013-2014 Paul Miller (http://paulmillr.com)
 // ES6-shim may be freely distributed under the MIT license.
 // For more details and documentation:
 // https://github.com/paulmillr/es6-shim/
 
 (function(undefined) {
   'use strict';
+
+  var isCallableWithoutNew = function(func) {
+    try { func(); }
+    catch (e) { return false; }
+    return true;
+  };
 
   var arePropertyDescriptorsSupported = function() {
     try {
@@ -15,10 +21,23 @@
     }
   };
 
+  var startsWithRejectsRegex = function() {
+    var rejectsRegex = false;
+    if (String.prototype.startsWith) {
+      try {
+        '/a/'.startsWith(/a/);
+      } catch (e) { /* this is spec compliant */
+        rejectsRegex = true;
+      }
+    }
+    return rejectsRegex;
+  };
+
   var main = function() {
     var globals = (typeof global === 'undefined') ? window : global;
     var global_isFinite = globals.isFinite;
     var supportsDescriptors = !!Object.defineProperty && arePropertyDescriptorsSupported();
+    var startsWithIsCompliant = startsWithRejectsRegex();
     var _slice = Array.prototype.slice;
     var _indexOf = String.prototype.indexOf;
     var _toString = Object.prototype.toString;
@@ -43,7 +62,32 @@
       });
     };
 
+    // This is a private name in the es6 spec, equal to '[Symbol.iterator]'
+    // we're going to use an arbitrary _-prefixed name to make our shims
+    // work properly with each other, even though we don't have full Iterator
+    // support.  That is, `Array.from(map.keys())` will work, but we don't
+    // pretend to export a "real" Iterator interface.
+    var $iterator$ = (typeof Symbol === 'object' && Symbol['iterator']) ||
+      '_es6shim_iterator_';
+    // Firefox ships a partial implementation using the name @@iterator.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=907077#c14
+    // So use that name if we detect it.
+    if (globals.Set && typeof new globals.Set()['@@iterator'] === 'function') {
+      $iterator$ = '@@iterator';
+    }
+    var addIterator = function(prototype, impl) {
+      if (!impl) { impl = function iterator() { return this; }; }
+      var o = {};
+      o[$iterator$] = impl;
+      defineProperties(prototype, o);
+    };
+
     var ES = {
+      CheckObjectCoercible: function(x) {
+        if (x == null) throw TypeError('Cannot call method on ' + x);
+        return x;
+      },
+
       ToInt32: function(x) {
         return x >> 0;
       },
@@ -57,17 +101,169 @@
         if (Number.isNaN(number)) return 0;
         if (number === 0 || !Number.isFinite(number)) return number;
         return Math.sign(number) * Math.floor(Math.abs(number));
+      },
+
+      SameValue: function(a, b) {
+        if (a === b) {
+          // 0 === -0, but they are not identical.
+          if (a === 0) return 1 / a === 1 / b;
+          return true;
+        }
+        return Number.isNaN(a) && Number.isNaN(b);
+      },
+
+      SameValueZero: function(a, b) {
+        // same as SameValue except for SameValueZero(+0, -0) == true
+        return (a === b) || (Number.isNaN(a) && Number.isNaN(b));
       }
     };
 
+    var numberConversion = (function () {
+      // from https://github.com/inexorabletash/polyfill/blob/master/typedarray.js#L176-L266
+      // with permission and license, per https://twitter.com/inexorabletash/status/372206509540659200
+
+      function roundToEven(n) {
+        var w = Math.floor(n), f = n - w;
+        if (f < 0.5) {
+          return w;
+        }
+        if (f > 0.5) {
+          return w + 1;
+        }
+        return w % 2 ? w + 1 : w;
+      }
+
+      function packIEEE754(v, ebits, fbits) {
+        var bias = (1 << (ebits - 1)) - 1,
+          s, e, f, ln,
+          i, bits, str, bytes;
+
+        // Compute sign, exponent, fraction
+        if (v !== v) {
+          // NaN
+          // http://dev.w3.org/2006/webapi/WebIDL/#es-type-mapping
+          e = (1 << ebits) - 1;
+          f = Math.pow(2, fbits - 1);
+          s = 0;
+        } else if (v === Infinity || v === -Infinity) {
+          e = (1 << ebits) - 1;
+          f = 0;
+          s = (v < 0) ? 1 : 0;
+        } else if (v === 0) {
+          e = 0;
+          f = 0;
+          s = (1 / v === -Infinity) ? 1 : 0;
+        } else {
+          s = v < 0;
+          v = Math.abs(v);
+
+          if (v >= Math.pow(2, 1 - bias)) {
+            e = Math.min(Math.floor(Math.log(v) / Math.LN2), 1023);
+            f = roundToEven(v / Math.pow(2, e) * Math.pow(2, fbits));
+            if (f / Math.pow(2, fbits) >= 2) {
+              e = e + 1;
+              f = 1;
+            }
+            if (e > bias) {
+              // Overflow
+              e = (1 << ebits) - 1;
+              f = 0;
+            } else {
+              // Normal
+              e = e + bias;
+              f = f - Math.pow(2, fbits);
+            }
+          } else {
+            // Subnormal
+            e = 0;
+            f = roundToEven(v / Math.pow(2, 1 - bias - fbits));
+          }
+        }
+
+        // Pack sign, exponent, fraction
+        bits = [];
+        for (i = fbits; i; i -= 1) {
+          bits.push(f % 2 ? 1 : 0);
+          f = Math.floor(f / 2);
+        }
+        for (i = ebits; i; i -= 1) {
+          bits.push(e % 2 ? 1 : 0);
+          e = Math.floor(e / 2);
+        }
+        bits.push(s ? 1 : 0);
+        bits.reverse();
+        str = bits.join('');
+
+        // Bits to bytes
+        bytes = [];
+        while (str.length) {
+          bytes.push(parseInt(str.substring(0, 8), 2));
+          str = str.substring(8);
+        }
+        return bytes;
+      }
+
+      function unpackIEEE754(bytes, ebits, fbits) {
+        // Bytes to bits
+        var bits = [], i, j, b, str,
+            bias, s, e, f;
+
+        for (i = bytes.length; i; i -= 1) {
+          b = bytes[i - 1];
+          for (j = 8; j; j -= 1) {
+            bits.push(b % 2 ? 1 : 0);
+            b = b >> 1;
+          }
+        }
+        bits.reverse();
+        str = bits.join('');
+
+        // Unpack sign, exponent, fraction
+        bias = (1 << (ebits - 1)) - 1;
+        s = parseInt(str.substring(0, 1), 2) ? -1 : 1;
+        e = parseInt(str.substring(1, 1 + ebits), 2);
+        f = parseInt(str.substring(1 + ebits), 2);
+
+        // Produce number
+        if (e === (1 << ebits) - 1) {
+          return f !== 0 ? NaN : s * Infinity;
+        } else if (e > 0) {
+          // Normalized
+          return s * Math.pow(2, e - bias) * (1 + f / Math.pow(2, fbits));
+        } else if (f !== 0) {
+          // Denormalized
+          return s * Math.pow(2, -(bias - 1)) * (f / Math.pow(2, fbits));
+        } else {
+          return s < 0 ? -0 : 0;
+        }
+      }
+
+      function unpackFloat64(b) { return unpackIEEE754(b, 11, 52); }
+      function packFloat64(v) { return packIEEE754(v, 11, 52); }
+      function unpackFloat32(b) { return unpackIEEE754(b, 8, 23); }
+      function packFloat32(v) { return packIEEE754(v, 8, 23); }
+
+      var conversions = {
+        toFloat32: function (num) { return unpackFloat32(packFloat32(num)); }
+      };
+      if (typeof Float32Array !== 'undefined') {
+        var float32array = new Float32Array(1);
+        conversions.toFloat32 = function (num) {
+          float32array[0] = num;
+          return float32array[0];
+        };
+      }
+      return conversions;
+    }());
+
     defineProperties(String, {
       fromCodePoint: function() {
-        var points = _slice.call(arguments, 0);
+        var points = _slice.call(arguments, 0, arguments.length);
         var result = [];
         var next;
         for (var i = 0, length = points.length; i < length; i++) {
           next = Number(points[i]);
-          if (!Object.is(next, ES.toInteger(next)) ||
+          if (!ES.SameValue(next, ES.toInteger(next)) ||
               next < 0 || next > 0x10FFFF) {
             throw new RangeError('Invalid code point ' + next);
           }
@@ -84,8 +280,8 @@
       },
 
       raw: function() {
-        var callSite = arguments[0];
-        var substitutions = _slice.call(arguments, 1);
+        var callSite = arguments.length > 0 ? arguments[0] : undefined;
+        var substitutions = _slice.call(arguments, 1, arguments.length);
         var cooked = Object(callSite);
         var rawValue = cooked.raw;
         var raw = Object(rawValue);
@@ -118,7 +314,7 @@
       }
     });
 
-    defineProperties(String.prototype, {
+    var StringShims = {
       // Fast repeat, uses the `Exponentiation by squaring` algorithm.
       // Perf: http://jsperf.com/string-repeat2/2
       repeat: (function() {
@@ -130,69 +326,124 @@
         };
 
         return function(times) {
+          var thisStr = String(ES.CheckObjectCoercible(this));
           times = ES.toInteger(times);
           if (times < 0 || times === Infinity) {
-            throw new RangeError();
+            throw new RangeError('Invalid String#repeat value');
           }
-          return repeat(String(this), times);
+          return repeat(thisStr, times);
         };
       })(),
 
       startsWith: function(searchStr) {
-        if (this == null) throw new TypeError("Cannot call method 'startsWith' of " + this);
-        var thisStr = String(this);
+        var thisStr = String(ES.CheckObjectCoercible(this));
+        if (_toString.call(searchStr) === '[object RegExp]') throw new TypeError('Cannot call method "startsWith" with a regex');
         searchStr = String(searchStr);
-        var start = Math.max(ES.toInteger(arguments[1]), 0);
+        var startArg = arguments.length > 1 ? arguments[1] : undefined;
+        var start = Math.max(ES.toInteger(startArg), 0);
         return thisStr.slice(start, start + searchStr.length) === searchStr;
       },
 
       endsWith: function(searchStr) {
-        if (this == null) throw new TypeError("Cannot call method 'endsWith' of " + this);
-        var thisStr = String(this);
+        var thisStr = String(ES.CheckObjectCoercible(this));
+        if (_toString.call(searchStr) === '[object RegExp]') throw new TypeError('Cannot call method "endsWith" with a regex');
         searchStr = String(searchStr);
         var thisLen = thisStr.length;
-        var pos = (arguments[1] === undefined) ?
-          thisLen : ES.toInteger(arguments[1]);
-        var end = Math.min(pos, thisLen);
+        var posArg = arguments.length > 1 ? arguments[1] : undefined;
+        var pos = posArg === undefined ? thisLen : ES.toInteger(posArg);
+        var end = Math.min(Math.max(pos, 0), thisLen);
         return thisStr.slice(end - searchStr.length, end) === searchStr;
       },
 
       contains: function(searchString) {
-        var position = arguments[1];
-
+        var position = arguments.length > 1 ? arguments[1] : undefined;
         // Somehow this trick makes method 100% compat with the spec.
         return _indexOf.call(this, searchString, position) !== -1;
       },
 
       codePointAt: function(pos) {
-        var s = String(this);
+        var thisStr = String(ES.CheckObjectCoercible(this));
         var position = ES.toInteger(pos);
-        var length = s.length;
+        var length = thisStr.length;
         if (position < 0 || position >= length) return undefined;
-        var first = s.charCodeAt(position);
+        var first = thisStr.charCodeAt(position);
         var isEnd = (position + 1 === length);
         if (first < 0xD800 || first > 0xDBFF || isEnd) return first;
-        var second = s.charCodeAt(position + 1);
+        var second = thisStr.charCodeAt(position + 1);
         if (second < 0xDC00 || second > 0xDFFF) return first;
         return ((first - 0xD800) * 1024) + (second - 0xDC00) + 0x10000;
       }
+    };
+    defineProperties(String.prototype, StringShims);
+
+    // see https://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype-@@iterator
+    var StringIterator = function(s) {
+      if (s==null) { throw new TypeError('StringIterator: given null'); }
+      this._s = String(s);
+      this._i = 0;
+    };
+    StringIterator.prototype.next = function() {
+      var s = this._s, i = this._i;
+      if (s===undefined || i >= s.length) {
+        this._s = undefined;
+        return { value: undefined, done: true };
+      }
+      var first = s.charCodeAt(i), second, len;
+      if (first < 0xD800 || first > 0xDBFF || (i+1) == s.length) {
+        len = 1;
+      } else {
+        second = s.charCodeAt(i+1);
+        len = (second < 0xDC00 || second > 0xDFFF) ? 1 : 2;
+      }
+      this._i = i + len;
+      return { value: s.substr(i, len), done: false };
+    };
+    addIterator(StringIterator.prototype);
+    addIterator(String.prototype, function() {
+      return new StringIterator(this);
     });
+
+    if (!startsWithIsCompliant) {
+      // Firefox has a noncompliant startsWith implementation
+      String.prototype.startsWith = StringShims.startsWith;
+      String.prototype.endsWith = StringShims.endsWith;
+    }
 
     defineProperties(Array, {
       from: function(iterable) {
-        var mapFn = arguments[1];
-        var thisArg = arguments[2];
+        var mapFn = arguments.length > 1 ? arguments[1] : undefined;
+        var thisArg = arguments.length > 2 ? arguments[2] : undefined;
 
-        if (mapFn !== undefined && _toString.call(mapFn) !== '[object Function]') {
-          throw new TypeError('when provided, the second argument must be a function');
+        if (iterable === null || iterable === undefined) {
+          throw new TypeError('Array.from: null or undefined are not valid values. Use []');
+        } else if (mapFn !== undefined && _toString.call(mapFn) !== '[object Function]') {
+          throw new TypeError('Array.from: when provided, the second argument must be a function');
         }
 
         var list = Object(iterable);
-        var length = ES.ToUint32(list.length);
-        var result = typeof this === 'function' ? Object(new this(length)) : new Array(length);
+        var usingIterator = ($iterator$ in list);
+        // does the spec really mean that Arrays should use ArrayIterator?
+        // https://bugs.ecmascript.org/show_bug.cgi?id=2416
+        //if (Array.isArray(list)) { usingIterator=false; }
+        var length = usingIterator ? 0 : ES.ToUint32(list.length);
+        var result = typeof this === 'function' ? Object(usingIterator ? new this() : new this(length)) : new Array(length);
+        var it = usingIterator ? list[$iterator$]() : null;
+        var value;
 
-        for (var i = 0; i < length; i++) {
-          var value = list[i];
+        for (var i = 0; usingIterator || (i < length); i++) {
+          if (usingIterator) {
+            value = it.next();
+            if (value == null || typeof value !== 'object') {
+              throw new TypeError("Bad iterator");
+            }
+            if (value.done) {
+              length = i;
+              break;
+            }
+            value = value.value;
+          } else {
+            value = list[i];
+          }
           if (mapFn !== undefined) {
             result[i] = thisArg ? mapFn.call(thisArg, value) : mapFn(value);
           } else {
@@ -219,32 +470,32 @@
 
     defineProperties(ArrayIterator.prototype, {
       next: function() {
-        var i = this.i;
-        this.i = i + 1;
-        var array = this.array;
-
-        if (i >= array.length) {
-          throw new Error();
+        var i = this.i, array = this.array;
+        if (i===undefined || this.kind===undefined) {
+          throw new TypeError('Not an ArrayIterator');
         }
-
-        if (array.hasOwnProperty(i)) {
-          var kind = this.kind;
-          var retval;
-          if (kind === "key") {
-            retval = i;
+        if (array!==undefined) {
+          for (; i < array.length; i++) {
+            var kind = this.kind;
+            var retval;
+            if (kind === "key") {
+              retval = i;
+            }
+            if (kind === "value") {
+              retval = array[i];
+            }
+            if (kind === "entry") {
+              retval = [i, array[i]];
+            }
+            this.i = i + 1;
+            return { value: retval, done: false };
           }
-          if (kind === "value") {
-            retval = array[i];
-          }
-          if (kind === "entry") {
-            retval = [i, array[i]];
-          }
-        } else {
-          retval = this.next();
         }
-        return retval;
+        this.array = undefined;
+        return { value: undefined, done: true };
       }
     });
+    addIterator(ArrayIterator.prototype);
 
     defineProperties(Array.prototype, {
       copyWithin: function(target, start) {
@@ -293,7 +544,7 @@
         if (typeof predicate !== 'function') {
           throw new TypeError('Array#find: predicate must be a function');
         }
-        var thisArg = arguments[1];
+        var thisArg = arguments.length > 1 ? arguments[1] : undefined;
         for (var i = 0, value; i < length && i in list; i++) {
           value = list[i];
           if (predicate.call(thisArg, value, i, list)) return value;
@@ -308,10 +559,9 @@
         if (typeof predicate !== 'function') {
           throw new TypeError('Array#findIndex: predicate must be a function');
         }
-        var thisArg = arguments[1];
-        for (var i = 0, value; i < length && i in list; i++) {
-          value = list[i];
-          if (predicate.call(thisArg, value, i, list)) return i;
+        var thisArg = arguments.length > 1 ? arguments[1] : undefined;
+        for (var i = 0; i < length && i in list; i++) {
+          if (predicate.call(thisArg, list[i], i, list)) return i;
         }
         return -1;
       },
@@ -328,6 +578,10 @@
         return new ArrayIterator(this, "entry");
       }
     });
+    addIterator(Array.prototype, function() { return this.values(); });
+    // Chrome defines keys/values/entries on Array, but doesn't give us
+    // any way to identify its iterator.  So add our own shimmed field.
+    addIterator(Object.getPrototypeOf([].values()));
 
     var maxSafeInteger = Math.pow(2, 53) - 1;
     defineProperties(Number, {
@@ -363,10 +617,10 @@
 
     defineProperties(Number.prototype, {
       clz: function() {
-        var number = +this;
-        if (!number || !Number.isFinite(number)) return 32;
-        number = number < 0 ? Math.ceil(number) : Math.floor(number);
-        number = number - Math.floor(number / 0x100000000) * 0x100000000;
+        var number = Number.prototype.valueOf.call(this) >>> 0;
+        if (number === 0) {
+          return 32;
+        }
         return 32 - (number).toString(2).length;
       }
     });
@@ -413,15 +667,6 @@
           return Object.keys(source).reduce(function(target, key) {
             target[key] = source[key];
             return target;
-          }, target);
-        },
-
-        // 19.1.3.15
-        mixin: function(target, source) {
-          var props = Object.getOwnPropertyNames(source);
-          return props.reduce(function(target, property) {
-            var descriptor = Object.getOwnPropertyDescriptor(source, property);
-            return Object.defineProperty(target, property, descriptor);
           }, target);
         }
       });
@@ -488,16 +733,11 @@
       },
 
       is: function(a, b) {
-        if (a === b) {
-          // 0 === -0, but they are not identical.
-          if (a === 0) return 1 / a === 1 / b;
-          return true;
-        }
-        return Number.isNaN(a) && Number.isNaN(b);
+        return ES.SameValue(a, b);
       }
     });
 
-    defineProperties(Math, {
+    var MathShims = {
       acosh: function(value) {
         value = Number(value);
         if (Number.isNaN(value) || value < 1) return NaN;
@@ -511,7 +751,7 @@
         if (value === 0 || !global_isFinite(value)) {
           return value;
         }
-        return Math.log(value + Math.sqrt(value * value + 1));
+        return value < 0 ? -Math.asinh(-value) : Math.log(value + Math.sqrt(value * value + 1));
       },
 
       atanh: function(value) {
@@ -537,7 +777,8 @@
       cosh: function(value) {
         value = Number(value);
         if (value === 0) return 1; // +0 or -0
-        if (!global_isFinite(value)) return value;
+        if (Number.isNaN(value)) return NaN;
+        if (!global_isFinite(value)) return Infinity;
         if (value < 0) value = -value;
         if (value > 21) return Math.exp(value) / 2;
         return (Math.exp(value) + Math.exp(-value)) / 2;
@@ -649,8 +890,22 @@
         // the shift by 0 fixes the sign on the high part
         // the final |0 converts the unsigned value into a signed value
         return ((al * bl) + (((ah * bl + al * bh) << 16) >>> 0)|0);
+      },
+
+      fround: function(x) {
+        if (x === 0 || x === Infinity || x === -Infinity || Number.isNaN(x)) {
+          return x;
+        }
+        var num = Number(x);
+        return numberConversion.toFloat32(num);
       }
-    });
+    };
+    defineProperties(Math, MathShims);
+
+    if (Math.imul(0xffffffff, 5) !== -5) {
+      // Safari 6.1, at least, reports "0" for this value
+      Math.imul = MathShims.imul;
+    }
 
     // Map and Set require a true ES5 environment
     if (supportsDescriptors) {
@@ -659,7 +914,8 @@
         var type = typeof key;
         if (type === 'string') {
           return '$' + key;
-        } else if (type === 'number' && !Object.is(key, -0)) {
+        } else if (type === 'number') {
+          // note that -0 will get coerced to "0" when used as a property key
           return key;
         }
         return null;
@@ -688,15 +944,23 @@
 
           function MapIterator(map, kind) {
             this.head = map._head;
-            this.i = this.head.next;
+            this.i = this.head;
             this.kind = kind;
           }
 
           MapIterator.prototype = {
             next: function() {
               var i = this.i, kind = this.kind, head = this.head, result;
-              while (i !== head) {
-                this.i = i.next;
+              if (this.i === undefined) {
+                return { value: undefined, done: true };
+              }
+              while (i.isRemoved() && i !== head) {
+                // back up off of removed entries
+                i = i.prev;
+              }
+              // advance to next unreturned element.
+              while (i.next !== head) {
+                i = i.next;
                 if (!i.isRemoved()) {
                   if (kind === "key") {
                     result = i.key;
@@ -705,13 +969,16 @@
                   } else {
                     result = [i.key, i.value];
                   }
+                  this.i = i;
                   return { value: result, done: false };
                 }
-                i = this.i;
               }
+              // once the iterator is done, it is done forever.
+              this.i = undefined;
               return { value: undefined, done: true };
             }
           };
+          addIterator(MapIterator.prototype);
 
           function Map() {
             if (!(this instanceof Map)) throw new TypeError('Map must be called with "new"');
@@ -731,6 +998,9 @@
             configurable: true,
             enumerable: false,
             get: function() {
+              if (typeof this._size === 'undefined') {
+                throw new TypeError('size method called on incompatible Map');
+              }
               return this._size;
             }
           });
@@ -745,7 +1015,7 @@
               }
               var head = this._head, i = head;
               while ((i = i.next) !== head) {
-                if (Object.is(i.key, key)) {
+                if (ES.SameValueZero(i.key, key)) {
                   return i.value;
                 }
               }
@@ -756,11 +1026,11 @@
               var fkey = fastkey(key);
               if (fkey !== null) {
                 // fast O(1) path
-                return fkey in this._storage;
+                return typeof this._storage[fkey] !== 'undefined';
               }
               var head = this._head, i = head;
               while ((i = i.next) !== head) {
-                if (Object.is(i.key, key)) {
+                if (ES.SameValueZero(i.key, key)) {
                   return true;
                 }
               }
@@ -772,7 +1042,7 @@
               var fkey = fastkey(key);
               if (fkey !== null) {
                 // fast O(1) path
-                if (fkey in this._storage) {
+                if (typeof this._storage[fkey] !== 'undefined') {
                   this._storage[fkey].value = value;
                   return;
                 } else {
@@ -782,12 +1052,15 @@
                 }
               }
               while ((i = i.next) !== head) {
-                if (Object.is(i.key, key)) {
+                if (ES.SameValueZero(i.key, key)) {
                   i.value = value;
                   return;
                 }
               }
-              entry = entry ? entry : new MapEntry(key, value);
+              entry = entry || new MapEntry(key, value);
+              if (ES.SameValue(-0, key)) {
+                entry.key = +0; // coerce -0 to +0 in entry
+              }
               entry.next = this._head;
               entry.prev = this._head.prev;
               entry.prev.next = entry;
@@ -800,7 +1073,7 @@
               var fkey = fastkey(key);
               if (fkey !== null) {
                 // fast O(1) path
-                if (!(fkey in this._storage)) {
+                if (typeof this._storage[fkey] === 'undefined') {
                   return false;
                 }
                 i = this._storage[fkey].prev;
@@ -808,7 +1081,7 @@
                 // fall through
               }
               while ((i = i.next) !== head) {
-                if (Object.is(i.key, key)) {
+                if (ES.SameValueZero(i.key, key)) {
                   i.key = i.value = empty;
                   i.prev.next = i.next;
                   i.next.prev = i.prev;
@@ -845,16 +1118,13 @@
 
             forEach: function(callback) {
               var context = arguments.length > 1 ? arguments[1] : null;
-              var entireMap = this;
-
-              var head = this._head, i = head;
-              while ((i = i.next) !== head) {
-                if (!i.isRemoved()) {
-                  callback.call(context, i.value, i.key, entireMap);
-                }
+              var it = this.entries();
+              for (var entry = it.next(); !entry.done; entry = it.next()) {
+                callback.call(context, entry.value[1], entry.value[0], this);
               }
             }
           });
+          addIterator(Map.prototype, function() { return this.entries(); });
 
           return Map;
         })(),
@@ -893,6 +1163,10 @@
             configurable: true,
             enumerable: false,
             get: function() {
+              if (typeof this._storage === 'undefined') {
+                // https://github.com/paulmillr/es6-shim/issues/176
+                throw new TypeError('size method called on incompatible Set');
+              }
               ensureMap(this);
               return this['[[SetData]]'].size;
             }
@@ -960,6 +1234,7 @@
               });
             }
           });
+          addIterator(SetShim.prototype, function() { return this.values(); });
 
           return SetShim;
         })()
@@ -972,6 +1247,7 @@
           - In all current Firefox, Set#entries/keys/values & Map#clear do not exist
           - https://bugzilla.mozilla.org/show_bug.cgi?id=869996
           - In Firefox 24, Map and Set do not implement forEach
+          - In Firefox 25 at least, Map and Set are callable without "new"
         */
         if (
           typeof globals.Map.prototype.clear !== 'function' ||
@@ -979,12 +1255,17 @@
           new globals.Map().size !== 0 ||
           typeof globals.Set.prototype.keys !== 'function' ||
           typeof globals.Map.prototype.forEach !== 'function' ||
-          typeof globals.Set.prototype.forEach !== 'function'
+          typeof globals.Set.prototype.forEach !== 'function' ||
+          isCallableWithoutNew(globals.Map) ||
+          isCallableWithoutNew(globals.Set)
         ) {
           globals.Map = collectionShims.Map;
           globals.Set = collectionShims.Set;
         }
       }
+      // Shim incomplete iterator implementations.
+      addIterator(Object.getPrototypeOf((new globals.Map()).keys()));
+      addIterator(Object.getPrototypeOf((new globals.Set()).keys()));
     }
   };
 
